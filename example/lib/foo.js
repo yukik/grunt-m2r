@@ -1,7 +1,4 @@
 /*grunt-m2r*/
-
-'use strict';
-
 var bar = require('./bar');
 
 function foo (message) {
