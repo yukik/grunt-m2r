@@ -10,6 +10,8 @@ var EOL = require('os').EOL;
  * alias
  */
 var localName = '_exports';
+var GENERATED = '/* !!!!! GRUNT-M2R GENERATED THIS FILE !!!!! */';
+
 
 
 module.exports = function (grunt) {
@@ -29,7 +31,7 @@ module.exports = function (grunt) {
     console.log('target:' + files.length);
 
     // pattern
-    var flag = '/*grunt-m2r*/';
+    var flag = /^ *\/\*grunt-m2r(\:\w+)?\*\/ *$/;
     var stri = /^ *\'use strict\';$/;
     var requ = /^var (\w+) ?= ?require\('([-\.\/_0-9a-z]+)'\);?$/;
     var expo = /^ *exports\./;
@@ -47,6 +49,7 @@ module.exports = function (grunt) {
       var res = [];
       var mods = [];
       var params = [];
+      var isRequire = false;
       var useStrict = false;
       var needLocal = null;
       var isM2r = false;
@@ -55,9 +58,13 @@ module.exports = function (grunt) {
 
       text.split(EOL).forEach(function (line){
         // complie target
-        if (!isM2r && line === flag) {
-          isM2r = true;
-          return;
+        if (!isM2r) {
+          matches = line.match(flag);
+          if (matches) {
+            isRequire = matches[1] === ':require';
+            isM2r = true;
+            return;
+          }
         }
 
         // use strict
@@ -107,16 +114,19 @@ module.exports = function (grunt) {
       }
 
       // クライアント利用可能なモジュールを書き出し
-      if (isM2r && moduleName) {
+      if (isM2r) {
         var ln = needLocal ? 'var ' + localName + ';': '';
+        var method = isRequire ? 'require' : 'define';
         if (mods.length) {
           var ms = '[\'' + mods.join('\', \'') + '\']';
           var ps = params.join(', ');
-          res.unshift('define('+ ms + ', function(' + ps + ') {' + ln);
+          res.unshift(GENERATED + ' ' + method + '('+ ms + ', function(' + ps + ') {' + ln);
         } else {
-          res.unshift('define(function() {' + ln);
+          res.unshift(GENERATED + ' ' + method + '(function() {' + ln);
         }
-        res.push('  return ' + moduleName + ';');
+        if (moduleName) {
+          res.push('  return ' + moduleName + ';');
+        }
         res.push('});');
 
         var fpath = path.join(cwd, config.dest, js);
