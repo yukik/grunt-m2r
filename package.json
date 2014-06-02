@@ -1,6 +1,6 @@
 {
   "name": "grunt-m2r",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "node module to client module (requirejs)",
   "homepage": "https://github.com/yukik/grunt-m2r",
   "author": "Yuki Kurata <yuki.kurata@gmail.com>",
