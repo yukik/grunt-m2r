@@ -6,7 +6,8 @@ module.exports = function (grunt) {
       complie: {
         cwd: 'lib',
         src: '**/*.js',
-        dest: 'src'
+        dest: 'src',
+        prefix: 'src'
       }
     },
 
