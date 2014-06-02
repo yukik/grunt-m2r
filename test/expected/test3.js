@@ -1,4 +1,4 @@
-define(['./bar'], function(bar) {var _exports;
+/* !!!!! GRUNT-M2R GENERATED THIS FILE !!!!! */ define(['bar'], function(bar) {var _exports = {};
 
   _exports.foo = function foo (message) {
     console.log('foo say ' + message);
