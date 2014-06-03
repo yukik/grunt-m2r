@@ -242,6 +242,7 @@ function complie(grunt, from, to, prefix, modulePrefix, modules) {
     var definedModuleDirs = (prefix || '.').split('/').map(function (x, i, a) {
       return path.join(a.slice(0, i + 1).join('/') , 'node_modules');
     });
+    modules = modules || [];
     mods = mods.map(function(m) {
       // 相対パス
       if (m[0] === '.') {
