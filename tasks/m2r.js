@@ -71,7 +71,8 @@ function complieNormal (grunt, config) {
   files.forEach(function(file) {
     var from = path.join(options.cwd, file);
     var to = path.join(cwd, dest, file);
-    if (complie(grunt, from, to, prefix, modulePrefix)) {
+    var prefix2 = path.join(prefix, path.dirname(file));
+    if (complie(grunt, from, to, prefix2, modulePrefix)) {
       complieCount++;
     }
   });
