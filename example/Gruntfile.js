@@ -5,7 +5,6 @@ module.exports = function (grunt) {
     m2r: {
       complie: {
         cwd: 'lib',
-        src: '**/*.js',
         dest: 'src',
         prefix: 'src'
       }

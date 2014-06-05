@@ -96,13 +96,14 @@ node_modulesフォルダを指定して変換を行う事で、作成済みの�
 
 # target file format
 
- + `require`にはクライアントサイドでも使用できるモジュール用意する必要があります
  + 変換が可能な事を示すコメント`/*grunt-m2r*/`を追加する必要があります
  + 変換はコード全体がdefine関数で包まれます
  + require関数で包みたい場合は`/*grunt-m2r:require*/`とコメントしてください
  + コメントのないファイルは変換しません
  + メインの処理は変換後でも行が一致するようになっています
  + 変換後のファイルの１行目に`GRUNT-M2R GENERATED THIS FILE`のコメントが追加されます
+
+## sample
 
 before
 
@@ -120,9 +121,9 @@ module.exports = exports = foo;
 after
 
 ```js
-define(['src/bar'], function(bar) {
+/* !!!!! GRUNT-M2R GENERATED THIS FILE !!!!! */define(['src/bar'], function() {
   'use strict';
-
+  var bar = require('src/bar');
   function foo (message) {
     console.log('foo say ' + message);
     bar(message);
@@ -132,5 +133,48 @@ define(['src/bar'], function(bar) {
 });
 ```
 
+## 変数を利用したrequireでの注意事項
 
+```js
+var typeName = 'foo-text-type';
+var CustomType = require(typeName);
+```
 
+例えば、上記のようにrequireで読み込むモジュールを動的に指定したい場合に注意が必要です  
+そのままではRequireJSでは定義されていないとし例外が発生しますので、
+先に動的に読まれる可能性のあるすべてを必要モジュールとして読み込んでください  
+data-mainで指定したファイルで行うとよいでしょう  
+
+```js
+require(['src/task', 'src_lib/foo-text-type'], function (task) {
+  task();
+});
+```
+
+さらに相対パスでファイルを指定しているのか定義済みモジュールを指定しているかの判別もできません。
+そこで、定義済みモジュールの読み込みの場合は、コメントを追加して次のようにする必要が有ります。
+コメントが存在しない場合は、相対パスで指定していると見なします。
+
+```js
+var CustomType = require(typeName); /*module require*/
+```
+
+これにより、このrequireでは正しくモジュールを読み込む事が出来るようになります。
+
+## node.jsの標準API
+
+利用したいAPIを個別に作成する必要があります。  
+良く利用する継承とイベント処理のために、下記のAPIのみRequireJS版を用意しています。
+
+ + [nodify-util](https://github.com/yukik/nodify-util)
+ + [nodify-events](https://github.com/yukik/nodify-events)
+
+それぞれ、`util.js`,`events.js`をモジュールファイルの設置先ディレクトリに配置してください。  
+次のコードがクライアントサイドでも動作するようになります。
+
+```js
+var EventEmitter = require('events').EventEmitter;
+var util = require('util');
+
+util.inherits(Klass, EventEmitter);
+```

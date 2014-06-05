@@ -1,0 +1,5 @@
+{
+  "name" : "module1",
+  "keywords": ["m2r"],
+  "main": "lib/m1.js"
+}

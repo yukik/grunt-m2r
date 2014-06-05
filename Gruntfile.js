@@ -5,15 +5,19 @@ module.exports = function (grunt) {
   grunt.initConfig({
 
     m2r: {
-      test: {
+      test1: {
         cwd: 'test/data',
-        src: '*.js',
         dest: 'test/tmp'
+      },
+      test2: {
+        node_modules: 'test/data2',
+        dest: 'test/tmp2',
+        prefix: 'tmp2'
       }
     },
 
     clean: {
-      test: ['test/tmp']
+      test: ['test/tmp', 'test/tmp2']
     },
 
     nodeunit: {

@@ -11,15 +11,18 @@ var EOL = require('os').EOL;
 /**
  * alias
  */
-var localName         = '_exports';
 var GENERATED         = '/* !!!!! GRUNT-M2R GENERATED THIS FILE !!!!! */';
 var REG_FLAG          = /^ *\/\*grunt-m2r(\:\w+)?\*\/ *$/;
-var REG_STRICT        = /^ *\'use strict\';$/;
-var REG_REQUIRE       = /^var (\w+) ?= ?require\('([-\.\/_0-9a-z]+)'\);?$/;
+var REG_STRICT        = /^ *\'use strict\';?$/;
+var REG_REQUIRE       = /(= *require *)\( *([^)]+) *\)/;
+var REG_MOD_NAME      = /^'([^']+)'$/;
 var REG_EXPORT        = /^ *exports\./;
-var REG_MODULE_EXPORT = /^module\.exports ?= ?(exports ?= ?)?(\w+);$/;
+var REG_MODULE_EXPORT = /^module\.exports *= *(exports *= *)?(\w+) *;?$/;
+var MODULE_REQUIRE    = '/*module require*/';
 
-
+/**
+ * exports
+ */
 function m2r (grunt) {
 
   var description = 'node module to client module (requirejs)';
@@ -103,6 +106,7 @@ function complieModules (grunt, config) {
   var modules2 = modules.map(function (m) {return path.join(prefix, m);});
   modules.forEach(function (packageName) {
     compileModule(grunt, searchDir, dest, prefix, packageName, modules2);
+    console.log('complie:' + packageName);
   });
 }
 
@@ -117,16 +121,17 @@ function complieModules (grunt, config) {
 function createEntryPoint (grunt, searchDir, dest, prefix, packageJson) {
   var jsonFile = path.join(searchDir, packageJson);
   var info = grunt.file.readJSON(jsonFile);
-  if (info.keywords && ~info.keywords.indexOf('m2r')) {
-    var mainFile = info.main || 'index.js';
-    var packageName = path.dirname(packageJson);
-    var index = path.resolve(cwd, dest || '.', packageName + '.js');
-    var defineName = path.join(prefix || '.' , packageName, mainFile.slice(0, -3));
-    var w = GENERATED + '\n' +
-        'define([\'' + defineName + '\'], function(main){return main;});';
-    grunt.file.write(index, w , {encoding: 'UTF-8'});
-    return packageName;
+  if (!~(info.keywords || []).indexOf('m2r')) {
+    return false;
   }
+  var mainFile = info.main || 'index.js';
+  var packageName = path.dirname(packageJson);
+  var index = path.resolve(cwd, dest || '.', packageName + '.js');
+  var defineName = path.join(prefix || '.' , packageName, mainFile.slice(0, -3));
+  var w = GENERATED + '\n' +
+      'define([\'' + defineName + '\'], function(main){return main;});';
+  grunt.file.write(index, w , {encoding: 'UTF-8'});
+  return packageName;
 }
 
 /**
@@ -165,7 +170,6 @@ function complie(grunt, from, to, prefix, modulePrefix, modules) {
 
   var res = [];
   var mods = [];
-  var params = [];
   var isRequire = false;
   var useStrict = false;
   var needLocal = null;
@@ -173,8 +177,14 @@ function complie(grunt, from, to, prefix, modulePrefix, modules) {
   var moduleName = null;
   var matches;
 
+  // 定義済みモジュールと検索対象のディレクトリ
+  modules = modules || [];
+  var definedModuleDirs = (prefix || '.').split('/').map(function (x, i, a) {
+    return path.join(a.slice(0, i + 1).join('/') , 'node_modules');
+  });
+
   text.split(EOL).forEach(function (line){
-    // complie target
+    // /*grunt-m2r*/
     if (!isM2r) {
       matches = line.match(REG_FLAG);
       if (matches) {
@@ -184,7 +194,7 @@ function complie(grunt, from, to, prefix, modulePrefix, modules) {
       }
     }
 
-    // use strict
+    // 'use strict'
     matches = line.match(REG_STRICT);
     if (matches) {
       useStrict = res.length;
@@ -192,25 +202,27 @@ function complie(grunt, from, to, prefix, modulePrefix, modules) {
       return;
     }
 
-    // require
+    // require ('foo')
     matches = line.match(REG_REQUIRE);
     if (matches) {
-      mods.push(matches[2]);
-      params.push(matches[1]);
-      res.push('');
+      var result = complieRequire(line, matches, prefix, modulePrefix, modules, definedModuleDirs);
+      if (result.loadModule) {
+        mods.push(result.loadModule);
+      }
+      res.push(result.line);
       return;
     }
 
-    // exports
+    // exports.foo =
     matches = line.match(REG_EXPORT);
     if (matches) {
       needLocal = true;
-      res.push('  ' + line.replace('exports', localName));
-      moduleName = localName;
+      res.push('  ' + line);
+      moduleName = 'exports';
       return;
     }
 
-    // module.exports
+    // module.exports = 
     matches = line.match(REG_MODULE_EXPORT);
     if (matches) {
       moduleName = matches[2];
@@ -232,35 +244,18 @@ function complie(grunt, from, to, prefix, modulePrefix, modules) {
 
   // use strictの前にローカル変数を追加
   if (useStrict !== false && needLocal) {
-    res[useStrict] = res[useStrict] + 'var ' + localName + ' = {};';
+    res[useStrict] = res[useStrict] + ' var exports = {};';
     needLocal = false;
   }
 
   // クライアント利用可能なモジュールを書き出し
-  var ln = needLocal ? 'var ' + localName + ' = {};': '';
+  var ln = needLocal ? 'var exports = {};': '';
   var method = isRequire ? 'require' : 'define';
+  var ms = '';
   if (mods.length) {
-    var definedModuleDirs = (prefix || '.').split('/').map(function (x, i, a) {
-      return path.join(a.slice(0, i + 1).join('/') , 'node_modules');
-    });
-    modules = modules || [];
-    mods = mods.map(function(m) {
-      // 相対パス
-      if (m[0] === '.') {
-        return path.join(prefix, m);
-      }
-      // 定義済みモジュール
-      return definedModuleDirs.reduce(function (x, y) {
-        var idx = modules.indexOf(path.join(y, m));
-        return idx === -1 ? x : modules[idx];
-      }, path.join(modulePrefix, m));
-    });
-    var ms = '[\'' + mods.join('\', \'') + '\']';
-    var ps = params.join(', ');
-    res.unshift(GENERATED + ' ' + method + '('+ ms + ', function(' + ps + ') {' + ln);
-  } else {
-    res.unshift(GENERATED + ' ' + method + '(function() {' + ln);
+    ms = '[\'' + mods.join('\', \'') + '\'], ';
   }
+  res.unshift(GENERATED + ' ' + method + '('+ ms + 'function() {' + ln);
   if (moduleName) {
     res.push('  return ' + moduleName + ';');
   }
@@ -272,5 +267,51 @@ function complie(grunt, from, to, prefix, modulePrefix, modules) {
   return mods;
 }
 
+/**
+ * requireを含む行を処理する
+ * @method complieRequire
+ * @param  {String} line
+ * @param  {Object} matches
+ * @param  {String} prefix
+ * @param  {String} modulePrefix
+ * @param  {Array}  modules
+ * @param  {Array}  definedModuleDirs
+ * @return {Object} result
+ */
+function complieRequire (line, matches, prefix, modulePrefix, modules, definedModuleDirs) {
+  var pre = line.slice(0, matches.index);
+  var mod = matches[2];
+  var sur = line.slice(matches.index + matches[0].length);
+  var loadModule = null;
+
+  var mtc2 = mod.match(REG_MOD_NAME);
+  // 静的
+  if (mtc2) {
+    var name = mtc2[1];
+    // 相対パス
+    if (name[0] === '.') {
+      loadModule = path.join(prefix, name);
+    // 絶対パス
+    } else {
+      // 定義済みモジュールから一番階層が近いものを検索
+      // 見つからない場合はmodulePrefixを追加して返す
+      loadModule = definedModuleDirs.reduce(function (x, y) {
+        var idx = modules.indexOf(path.join(y, name));
+        return idx === -1 ? x : modules[idx];
+      }, path.join(modulePrefix, name));
+    }
+    mod = '\'' + loadModule + '\'';
+
+  // 動的
+  } else {
+    if (modulePrefix !== '.' && ~line.indexOf(MODULE_REQUIRE)) {
+      mod = '\'' + modulePrefix + '/\' + ' + mod;
+    }
+  }
+  return {
+    loadModule: loadModule,
+    line: '  ' + pre + '= require(' + mod + ')' + sur
+  };
+}
 
 module.exports = exports = m2r;
