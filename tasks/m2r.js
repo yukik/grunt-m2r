@@ -251,11 +251,9 @@ function complie(grunt, from, to, prefix, modulePrefix, modules) {
   // クライアント利用可能なモジュールを書き出し
   var ln = needLocal ? 'var exports = {};': '';
   var method = isRequire ? 'require' : 'define';
-  var ms = '';
-  if (mods.length) {
-    ms = '[\'' + mods.join('\', \'') + '\'], ';
-  }
-  res.unshift(GENERATED + ' ' + method + '('+ ms + 'function() {' + ln);
+  var ms = mods.length ? ', \'' + mods.join('\', \'') + '\'' : '';
+  res.unshift(GENERATED + ' ' +
+    method + '([\'require\'' + ms + '], function(require) {' + ln);
   if (moduleName) {
     res.push('  return ' + moduleName + ';');
   }
