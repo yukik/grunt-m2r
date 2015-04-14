@@ -14,7 +14,7 @@ var EOL = require('os').EOL;
 var GENERATED         = '/* !!!!! GRUNT-M2R GENERATED THIS FILE !!!!! */';
 var REG_FLAG          = /^ *\/\*grunt-m2r(\:\w+)?\*\/ *$/;
 var REG_STRICT        = /^ *\'use strict\';?$/;
-var REG_REQUIRE       = /(= *require *)\( *([^)]+) *\)/;
+var REG_REQUIRE       = /([=(,:] *require *\() *([^)]+) *\)/;
 var REG_MOD_NAME      = /^'([^']+)'$/;
 var REG_EXPORT        = /^ *exports\./;
 var REG_MODULE_EXPORT = /^module\.exports *= *(exports *= *)?(\w+) *;?$/;
@@ -53,7 +53,6 @@ function m2r (grunt) {
  * @method normalComplie
  * @param  {Grunt}      grunt
  * @param  {Object}      config
- * @param  {Function}    done
  */
 function complieNormal (grunt, config) {
   var srcCwd = path.resolve(cwd, config.cwd || '.');
@@ -87,7 +86,7 @@ function complieNormal (grunt, config) {
  * node_modules全体をコンパイル
  * @method complieModules
  * @param {String} node_modules
- * @param {String} to
+ * @param {Object} config
  */
 function complieModules (grunt, config) {
   // 検索するディレクトリ
@@ -112,11 +111,12 @@ function complieModules (grunt, config) {
 
 /**
  * @method createEntryPoint
- * @param  {Grunt}  grunt
- * @param  {String} dest
- * @param  {String} prefix
- * @param  {String} packageName
- * @param  {String} mainPath
+ * @param  {Grunt}         grunt
+ * @param  {String}        searchDir
+ * @param  {String}        dest
+ * @param  {String}        prefix
+ * @param  {String}        packageJson
+ * @return {String}        packageName
  */
 function createEntryPoint (grunt, searchDir, dest, prefix, packageJson) {
   var jsonFile = path.join(searchDir, packageJson);
@@ -135,10 +135,13 @@ function createEntryPoint (grunt, searchDir, dest, prefix, packageJson) {
 }
 
 /**
- * @method complieOther
- * @param  {Grunt}  grunt
- * @param  {Object} config
- * @param  {String} skipFile
+ * @method compileModule
+ * @param  {Crunt}       grunt
+ * @param  {String}      searchDir
+ * @param  {String}      dest
+ * @param  {String}      prefix
+ * @param  {String}      packageName
+ * @param  {Array}       modules
  */
 function compileModule (grunt, searchDir, dest, prefix, packageName, modules) {
   var modulePrefix = prefix;
@@ -149,8 +152,8 @@ function compileModule (grunt, searchDir, dest, prefix, packageName, modules) {
   files = files.filter(function (f) {return f.indexOf('node_modules');});
   files.forEach(function(f){
     var prefix2 = path.join(prefix, packageName, path.dirname(f));
-    var from   = path.join(packageDir, f);
-    var to     = path.resolve(cwd, dest || '.', packageName, f);
+    var from = path.join(packageDir, f);
+    var to = path.resolve(cwd, dest || '.', packageName, f);
     complie(grunt, from, to, prefix2, modulePrefix, modules);
   });
 }
@@ -163,6 +166,7 @@ function compileModule (grunt, searchDir, dest, prefix, packageName, modules) {
  * @param  {String}  to
  * @param  {String}  prefix       相対位置のプリフィックス
  * @param  {String}  modulePrefix
+ * @param  {Array}   modules
  * @return {Boolean} result
  */
 function complie(grunt, from, to, prefix, modulePrefix, modules) {
@@ -253,7 +257,7 @@ function complie(grunt, from, to, prefix, modulePrefix, modules) {
   var method = isRequire ? 'require' : 'define';
   var ms = mods.length ? ', \'' + mods.join('\', \'') + '\'' : '';
   res.unshift(GENERATED + ' ' +
-    method + '([\'require\'' + ms + '], function(require) {' + ln);
+        method + '([\'require\'' + ms + '], function(require) {' + ln);
   if (moduleName) {
     res.push('  return ' + moduleName + ';');
   }
@@ -277,7 +281,7 @@ function complie(grunt, from, to, prefix, modulePrefix, modules) {
  * @return {Object} result
  */
 function complieRequire (line, matches, prefix, modulePrefix, modules, definedModuleDirs) {
-  var pre = line.slice(0, matches.index);
+  var pre = line.slice(0, matches.index) + matches[1];
   var mod = matches[2];
   var sur = line.slice(matches.index + matches[0].length);
   var loadModule = null;
@@ -308,7 +312,7 @@ function complieRequire (line, matches, prefix, modulePrefix, modules, definedMo
   }
   return {
     loadModule: loadModule,
-    line: '  ' + pre + '= require(' + mod + ')' + sur
+    line: '  ' + pre + mod + ')' + sur
   };
 }
 
